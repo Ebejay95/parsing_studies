@@ -1,0 +1,458 @@
+package json_parser
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+	"unicode"
+)
+
+// Token-Definitionen
+type TokenType int
+
+const (
+	// Werte
+	STRING TokenType = iota
+	NUMBER
+	BOOLEAN_TRUE
+	BOOLEAN_FALSE
+	NULL
+
+	// Strukturen
+	LBRACE    // {
+	RBRACE    // }
+	LBRACKET  // [
+	RBRACKET  // ]
+	COLON     // :
+	COMMA     // ,
+
+	// Spezial
+	EOF
+	INVALID
+)
+
+type Token struct {
+	Type     TokenType
+	Value    string
+	Position int
+}
+
+func (t Token) String() string {
+	typeNames := map[TokenType]string{
+		STRING: "STRING", NUMBER: "NUMBER", BOOLEAN_TRUE: "TRUE",
+		BOOLEAN_FALSE: "FALSE", NULL: "NULL", LBRACE: "LBRACE",
+		RBRACE: "RBRACE", LBRACKET: "LBRACKET", RBRACKET: "RBRACKET",
+		COLON: "COLON", COMMA: "COMMA", EOF: "EOF", INVALID: "INVALID",
+	}
+	return fmt.Sprintf("%s(%s)", typeNames[t.Type], t.Value)
+}
+
+// Lexer-Teil des Parsers
+type JSONParser struct {
+	input  string
+	pos    int
+	tokens []Token
+	currentTokenIndex int
+}
+
+func NewJSONParser(input string) *JSONParser {
+	parser := &JSONParser{
+		input: input,
+		pos:   0,
+	}
+	// PHASE 1: Tokenisierung
+	parser.tokenize()
+	return parser
+}
+
+// PHASE 1: Lexer-Funktionalität - Tokenisierung
+func (p *JSONParser) tokenize() {
+	fmt.Println("🔍 TOKENIZATION PHASE")
+	fmt.Printf("Input: %s\n", p.input)
+
+	for p.pos < len(p.input) {
+		p.skipWhitespace()
+
+		if p.pos >= len(p.input) {
+			break
+		}
+
+		token := p.nextToken()
+		p.tokens = append(p.tokens, token)
+		fmt.Printf("Token %d: %s\n", len(p.tokens), token)
+	}
+
+	// EOF Token hinzufügen
+	p.tokens = append(p.tokens, Token{EOF, "", p.pos})
+	fmt.Printf("Token %d: %s\n", len(p.tokens), p.tokens[len(p.tokens)-1])
+	fmt.Printf("✅ Tokenization complete: %d tokens\n\n", len(p.tokens))
+}
+
+func (p *JSONParser) current() byte {
+	if p.pos >= len(p.input) {
+		return 0
+	}
+	return p.input[p.pos]
+}
+
+func (p *JSONParser) advance() {
+	if p.pos < len(p.input) {
+		p.pos++
+	}
+}
+
+func (p *JSONParser) skipWhitespace() {
+	for p.pos < len(p.input) && unicode.IsSpace(rune(p.current())) {
+		p.advance()
+	}
+}
+
+func (p *JSONParser) nextToken() Token {
+	start := p.pos
+
+	switch p.current() {
+	case '{':
+		p.advance()
+		return Token{LBRACE, "{", start}
+	case '}':
+		p.advance()
+		return Token{RBRACE, "}", start}
+	case '[':
+		p.advance()
+		return Token{LBRACKET, "[", start}
+	case ']':
+		p.advance()
+		return Token{RBRACKET, "]", start}
+	case ':':
+		p.advance()
+		return Token{COLON, ":", start}
+	case ',':
+		p.advance()
+		return Token{COMMA, ",", start}
+	case '"':
+		return p.readString()
+	case 't':
+		return p.readTrue()
+	case 'f':
+		return p.readFalse()
+	case 'n':
+		return p.readNull()
+	case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		return p.readNumber()
+	default:
+		p.advance()
+		return Token{INVALID, string(p.input[start]), start}
+	}
+}
+
+func (p *JSONParser) readString() Token {
+	start := p.pos
+	p.advance() // Skip opening quote
+
+	value := ""
+	for p.pos < len(p.input) && p.current() != '"' {
+		if p.current() == '\\' {
+			p.advance() // Skip escape
+			if p.pos < len(p.input) {
+				value += string(p.current())
+				p.advance()
+			}
+		} else {
+			value += string(p.current())
+			p.advance()
+		}
+	}
+
+	if p.pos < len(p.input) && p.current() == '"' {
+		p.advance() // Skip closing quote
+		return Token{STRING, value, start}
+	}
+
+	return Token{INVALID, "unclosed string", start}
+}
+
+func (p *JSONParser) readNumber() Token {
+	start := p.pos
+	value := ""
+
+	if p.current() == '-' {
+		value += string(p.current())
+		p.advance()
+	}
+
+	for p.pos < len(p.input) && unicode.IsDigit(rune(p.current())) {
+		value += string(p.current())
+		p.advance()
+	}
+
+	if p.current() == '.' {
+		value += string(p.current())
+		p.advance()
+		for p.pos < len(p.input) && unicode.IsDigit(rune(p.current())) {
+			value += string(p.current())
+			p.advance()
+		}
+	}
+
+	return Token{NUMBER, value, start}
+}
+
+func (p *JSONParser) readTrue() Token {
+	start := p.pos
+	expected := "true"
+
+	for i := 0; i < len(expected); i++ {
+		if p.pos >= len(p.input) || p.current() != expected[i] {
+			return Token{INVALID, "invalid literal", start}
+		}
+		p.advance()
+	}
+
+	return Token{BOOLEAN_TRUE, "true", start}
+}
+
+func (p *JSONParser) readFalse() Token {
+	start := p.pos
+	expected := "false"
+
+	for i := 0; i < len(expected); i++ {
+		if p.pos >= len(p.input) || p.current() != expected[i] {
+			return Token{INVALID, "invalid literal", start}
+		}
+		p.advance()
+	}
+
+	return Token{BOOLEAN_FALSE, "false", start}
+}
+
+func (p *JSONParser) readNull() Token {
+	start := p.pos
+	expected := "null"
+
+	for i := 0; i < len(expected); i++ {
+		if p.pos >= len(p.input) || p.current() != expected[i] {
+			return Token{INVALID, "invalid literal", start}
+		}
+		p.advance()
+	}
+
+	return Token{NULL, "null", start}
+}
+
+// PHASE 2: Parser-Funktionalität - Token zu Struktur
+func (p *JSONParser) currentToken() Token {
+	if p.currentTokenIndex >= len(p.tokens) {
+		return Token{EOF, "", -1}
+	}
+	return p.tokens[p.currentTokenIndex]
+}
+
+func (p *JSONParser) consumeToken() Token {
+	token := p.currentToken()
+	if p.currentTokenIndex < len(p.tokens)-1 {
+		p.currentTokenIndex++
+	}
+	return token
+}
+
+func (p *JSONParser) expectToken(expectedType TokenType) error {
+	token := p.currentToken()
+	if token.Type != expectedType {
+		return fmt.Errorf("expected %v, got %v at position %d", expectedType, token.Type, token.Position)
+	}
+	p.consumeToken()
+	return nil
+}
+
+// Recursive Descent Parser - arbeitet mit Tokens statt Characters
+func (p *JSONParser) Parse() error {
+	fmt.Println("🎯 PARSING PHASE")
+	fmt.Println("Tokens to parse:", p.tokens)
+	fmt.Println()
+
+	if err := p.parseValue(); err != nil {
+		return err
+	}
+
+	// Sollte EOF erreicht haben
+	if p.currentToken().Type != EOF {
+		return fmt.Errorf("unexpected tokens after valid JSON")
+	}
+
+	fmt.Println("✅ Parsing successful!")
+	return nil
+}
+
+func (p *JSONParser) parseValue() error {
+	token := p.currentToken()
+	fmt.Printf("Parsing value, current token: %s\n", token)
+
+	switch token.Type {
+	case STRING:
+		fmt.Printf("  → Parsing STRING: %s\n", token.Value)
+		p.consumeToken()
+		return nil
+	case NUMBER:
+		fmt.Printf("  → Parsing NUMBER: %s\n", token.Value)
+		// Validierung: Ist es eine gültige Zahl?
+		if _, err := strconv.ParseFloat(token.Value, 64); err != nil {
+			return fmt.Errorf("invalid number: %s", token.Value)
+		}
+		p.consumeToken()
+		return nil
+	case BOOLEAN_TRUE, BOOLEAN_FALSE:
+		fmt.Printf("  → Parsing BOOLEAN: %s\n", token.Value)
+		p.consumeToken()
+		return nil
+	case NULL:
+		fmt.Printf("  → Parsing NULL\n")
+		p.consumeToken()
+		return nil
+	case LBRACE:
+		fmt.Printf("  → Parsing OBJECT\n")
+		return p.parseObject()
+	case LBRACKET:
+		fmt.Printf("  → Parsing ARRAY\n")
+		return p.parseArray()
+	default:
+		return fmt.Errorf("unexpected token: %s", token)
+	}
+}
+
+func (p *JSONParser) parseObject() error {
+	fmt.Println("    Entering object...")
+
+	if err := p.expectToken(LBRACE); err != nil {
+		return err
+	}
+
+	// Leeres Object
+	if p.currentToken().Type == RBRACE {
+		fmt.Println("    Empty object")
+		return p.expectToken(RBRACE)
+	}
+
+	// Erstes Key-Value Paar
+	if err := p.parseKeyValue(); err != nil {
+		return err
+	}
+
+	// Weitere Key-Value Paare
+	for p.currentToken().Type == COMMA {
+		p.consumeToken() // COMMA
+		if err := p.parseKeyValue(); err != nil {
+			return err
+		}
+	}
+
+	fmt.Println("    Exiting object...")
+	return p.expectToken(RBRACE)
+}
+
+func (p *JSONParser) parseKeyValue() error {
+	fmt.Println("      Key-Value pair...")
+
+	// Key muss STRING sein
+	if p.currentToken().Type != STRING {
+		return fmt.Errorf("expected string key, got %s", p.currentToken())
+	}
+	fmt.Printf("      Key: %s\n", p.currentToken().Value)
+	p.consumeToken()
+
+	// Colon
+	if err := p.expectToken(COLON); err != nil {
+		return err
+	}
+
+	// Value
+	fmt.Println("      Value:")
+	return p.parseValue()
+}
+
+func (p *JSONParser) parseArray() error {
+	fmt.Println("    Entering array...")
+
+	if err := p.expectToken(LBRACKET); err != nil {
+		return err
+	}
+
+	// Leeres Array
+	if p.currentToken().Type == RBRACKET {
+		fmt.Println("    Empty array")
+		return p.expectToken(RBRACKET)
+	}
+
+	// Erstes Element
+	if err := p.parseValue(); err != nil {
+		return err
+	}
+
+	// Weitere Elemente
+	for p.currentToken().Type == COMMA {
+		p.consumeToken() // COMMA
+		if err := p.parseValue(); err != nil {
+			return err
+		}
+	}
+
+	fmt.Println("    Exiting array...")
+	return p.expectToken(RBRACKET)
+}
+
+// Haupt-API
+func IsValidJSON(jsonStr string) bool {
+	parser := NewJSONParser(jsonStr)
+
+	// Check for tokenization errors
+	for _, token := range parser.tokens {
+		if token.Type == INVALID {
+			fmt.Printf("❌ Tokenization error: %s at position %d\n", token.Value, token.Position)
+			return false
+		}
+	}
+
+	// Parse the tokens
+	if err := parser.Parse(); err != nil {
+		fmt.Printf("❌ Parse error: %v\n", err)
+		return false
+	}
+
+	return true
+}
+
+// Debug-Funktion
+func ShowTokens(jsonStr string) {
+	fmt.Printf("Analyzing: %s\n", jsonStr)
+	fmt.Println(strings.Repeat("=", 50))
+
+	parser := NewJSONParser(jsonStr)
+
+	fmt.Println("Generated tokens:")
+	for i, token := range parser.tokens {
+		fmt.Printf("%d: %s\n", i, token)
+	}
+}
+
+// Test-Funktion
+func TestTokenizedParser() {
+	testCases := []string{
+		`"hello"`,
+		`42`,
+		`true`,
+		`null`,
+		`[]`,
+		`{}`,
+		`[1, 2, 3]`,
+		`{"name": "John"}`,
+		`{"user": {"age": 25, "items": [1, 2, true]}}`,
+	}
+
+	for i, test := range testCases {
+		fmt.Printf("\n" + strings.Repeat("=", 60) + "\n")
+		fmt.Printf("TEST %d: %s\n", i+1, test)
+		fmt.Printf(strings.Repeat("=", 60) + "\n")
+
+		result := IsValidJSON(test)
+		fmt.Printf("Result: %v\n", result)
+	}
+}

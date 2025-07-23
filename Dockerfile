@@ -4,7 +4,6 @@ WORKDIR /json_validator
 
 COPY . .
 
-RUN go mod init json_validator
 RUN go mod tidy
 RUN go build -o json_validator app.go
 
