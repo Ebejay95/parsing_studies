@@ -1,10 +1,11 @@
-FROM golang:1.19 AS build-stage
+FROM golang:1.19
 
-WORKDIR /app
-
-# COPY go.mod go.sum ./
-# RUN go mod download
+WORKDIR /json_validator
 
 COPY . .
 
-WORKDIR /
+RUN go mod init json_validator
+RUN go mod tidy
+RUN go build -o json_validator app.go
+
+CMD ["/bin/bash"]
