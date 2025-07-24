@@ -1,7 +1,9 @@
 package printers
 
-import "os"
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 const (
     Reset  = "\033[0m"
@@ -16,11 +18,11 @@ const (
 )
 
 func Log(message string) {
-	fmt.Printf("%s\n", Yellow+Bold, message, Reset)
+	fmt.Printf("%s%s%s\n", Yellow+Bold, message, Reset)
 }
 
 func Success(message string) {
-	fmt.Printf("%s\n", Green+Bold, message, Reset)
+	fmt.Printf("%s%s%s\n", Green+Bold, message, Reset)
 }
 
 func Error(message string) {

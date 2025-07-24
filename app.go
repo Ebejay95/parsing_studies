@@ -1,9 +1,11 @@
 package main
 
-import "os"
-import "io"
-import "json_validator/json_parser"
-import "json_validator/printers"
+import (
+	"io"
+	"json_validator/json_parser"
+	"json_validator/printers"
+	"os"
+)
 
 func main() {
 	if len(os.Args) != 2 {
@@ -11,7 +13,7 @@ func main() {
 		os.Exit(1);
 	}
 
-	filename := os.Args[2]
+	filename := os.Args[1]
 	printers.Success("filename: " + filename)
 
 	file, err := os.Open(filename)
@@ -28,7 +30,7 @@ func main() {
 	}
 	printers.Success("content of " + filename + " retrieved!")
 
-	res := json_parser.ParseJSON(content)
+	res := json_parser.ParseJSON(string(content))
 	if res {
 		printers.Success("content of " + filename + " is valid json!")
 	} else {
