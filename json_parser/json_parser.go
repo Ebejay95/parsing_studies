@@ -51,10 +51,13 @@ func (jp *JSONParser) parseKeyValue() error {
 	return jp.parseJSONElement()
 }
 
-func (jp JSONParser) parseLiteral(literal string) error {
-	for i := 0 ; i < len(literal) ; i++ {
-		if jp.Pos() >= len(jp.Input()) && literal[i] != jp.Current() {
-			return printers.NewErrorf("unexpected end of input after escape character")
+func (jp *JSONParser) parseLiteral(literal string) error {
+	for i := 0; i < len(literal); i++ {
+		if jp.Pos() >= len(jp.Input()) {
+			return printers.NewErrorf("unexpected end of input while parsing literal '%s'", literal)
+		}
+		if jp.Current() != literal[i] {
+			return printers.NewErrorf("expected '%c' but got '%c' at position %d", literal[i], jp.Current(), jp.Pos())
 		}
 		jp.Advance()
 	}
@@ -72,20 +75,22 @@ func (jp *JSONParser) parseJSONElement() error {
 		case '{':
 			printers.Log("ParseEnclosedStructure OBJECT")
 			return jp.Parser.ParseEnclosedStructure(parser.EnclosedStructureConfig{
-				OpenChar:    '{',
-				CloseChar:   '}',
-				Separator:   ',',
+				OpenMarker:  "{",
+				CloseMarker: "}",
+				Separator:   ",",
 				ElementFunc: func() error { return jp.parseKeyValue() },
 				AllowEmpty:  true,
+				TrimWhitespace: true,
 			})
 		case '[':
 			printers.Log("ParseEnclosedStructure ARRAY")
 			return jp.Parser.ParseEnclosedStructure(parser.EnclosedStructureConfig{
-				OpenChar:    '[',
-				CloseChar:   ']',
-				Separator:   ',',
+				OpenMarker:  "[",
+				CloseMarker: "]",
+				Separator:   ",",
 				ElementFunc: func() error { return jp.parseJSONElement() },
 				AllowEmpty:  true,
+				TrimWhitespace: true,
 			})
 		case 't':
 			printers.Log("parseLiteral true")
