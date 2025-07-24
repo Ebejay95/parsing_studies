@@ -1,10 +1,10 @@
 FROM golang:1.19
 
-WORKDIR /json_validator
+WORKDIR /parsing_studies
 
 COPY . .
 
 RUN go mod tidy
-RUN go build -o json_validator app.go
+RUN go build -o parsing_studies app.go
 
 CMD ["/bin/bash"]

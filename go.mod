@@ -1,3 +1,3 @@
-module json_validator
+module parsing_studies
 
 go 1.19
