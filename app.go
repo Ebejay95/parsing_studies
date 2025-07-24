@@ -2,7 +2,8 @@ package main
 
 import (
 	"io"
-	"parsing_studies/json_parser"
+	"parsing_studies/types/json"
+	//"parsing_studies/types/TYPE"
 	"parsing_studies/printers"
 	"os"
 )

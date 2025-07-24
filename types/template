@@ -1,0 +1,60 @@
+package type_parser
+
+import "parsing_studies/parser"
+import "parsing_studies/printers"
+
+type TYPEParser struct {
+	*parser.Parser
+}
+
+func NewTYPEParser(input string) *TYPEParser {
+	return &TYPEParser{
+		Parser: parser.NewParser(input),
+	}
+}
+
+func (tp *TYPEParser) parseTYPEString() error {
+	if tp.Current() != 'X' {
+		return printers.NewErrorf("expected X at position %d", tp.Pos())
+	}
+
+	tp.Advance()
+
+	for tp.Pos() < len(tp.Input()) {
+		if tp.Current() == 'X' {
+			tp.Advance()
+			return nil
+		}
+		tp.Advance()
+	}
+	return printers.NewErrorf("unclosed string starting at position %d", tp.Pos())
+}
+
+func (tp *TYPEParser) parseTYPEElement() error {
+	printers.Log("parseTYPEElement")
+	tp.SkipWhitespace()
+
+	switch tp.Current() {
+		case 'X':
+			printers.Log("parseTYPEString")
+			return tp.parseTYPEString()
+		default:
+			return printers.NewErrorf("unexpected character '%c'", tp.Current())
+	}
+}
+
+func IsValidTYPE(input string) bool {
+	tp := NewTYPEParser(input)
+
+	err := tp.parseTYPEElement()
+	if err != nil {
+		printers.Errorf("%s", err)
+		return false
+	}
+	tp.SkipWhitespace()
+	if !tp.AtEnd() {
+		printers.Error("Unexpected characters after valid TYPE")
+		return false
+	}
+	return true
+}
